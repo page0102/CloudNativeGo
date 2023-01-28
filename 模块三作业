@@ -1,0 +1,103 @@
+## 作业内容：
+
+构建本地镜像
+编写 Dockerfile 将模块二作业编写的 httpserver 容器化
+将镜像推送至 docker 官方镜像仓库
+通过 docker 命令本地启动 httpserver
+通过 nsenter 进入容器查看 IP 配置
+---作业需编写并提交 Dockerfile 及源代码
+
+一. 构建本地镜像，编写Dockerfile 将模块二作业编写的 httpserver 容器化，通过docker 命令本地启动 httpserver（httpserver 部分代码略）
+
+1. 首先注册Docker(page0102/zongpengdocker)；
+2. 拉取ubuntu镜像：docker pull ubuntu
+3. 启动镜像：sudo docker run -it ubuntu /bin/bash
+4. 编写dockerfile: vim Dockerfile
+    # Dockerfile 内容：
+    FROM ubuntu
+    RUN echo '这是一个基于ubuntu且应用为httpserver的镜像' && mkdir -p /dockerstudy/httpserver
+    # 注意执行的命令以及路径关系
+    COPY go/gohttpserver /dockerstudy/httpserver/
+    #此处source路径必须是相对路径，使用绝对路径会报错COPY failed: 
+    file not found in build context or excluded by .dockerignore: stat /home/zhiyong/dockerstudy/httpserver/go/gohttpserver: file does not exist
+    ENTRYPOINT ["/dockerstudy/httpserver/gohttpserver"]
+    
+5.  构建镜像： docker build -t gohttpserver:v1 .
+
+    /**
+       Sending build context to Docker daemon  6.136MB
+       Step 1/4 : FROM ubuntu
+       ---> d2e4e1f51132
+       Step 2/4 : RUN echo '这是一个基于ubuntu且应用为httpserver的镜像' && mkdir -p /dockerstudy/httpserver
+       ---> Using cache
+       ---> 78301d6519e6
+       Step 3/4 : COPY go/gohttpserver /dockerstudy/httpserver
+       ---> a71b9bf69a19
+       Step 4/4 : ENTRYPOINT ["/dockerstudy/httpserver/gohttpserver"]
+       ---> Running in f5ac6f75f356
+       Removing intermediate container f5ac6f75f356
+       ---> ffdef51c9a42
+       Successfully built ffdef51c9a42
+       Successfully tagged gohttpserver:v1
+    **/
+6. 查看镜像：
+     root@zongpeng-virtual-machine:/home/zongpeng# docker images
+     REPOSITORY                              TAG       IMAGE ID       CREATED       SIZE
+     zongpengdocker/dockerstudy              v1        af50038de53c   2 weeks ago   84.2MB
+     gohttpserver                            v1        af50038de53c   2 weeks ago   84.2MB（本次创建的镜像）
+     page0102/zongpengdocker                 v1        af50038de53c   2 weeks ago   84.2MB
+     zongpengdocker/dockerstudy/httpserver   v1        af50038de53c   2 weeks ago   84.2MB
+     ubuntuwithvm                            latest    e0f2f5ec2de5   2 weeks ago   177MB
+     ubuntu                                  latest    6b7dfa7e8fdb   7 weeks ago   77.8MB
+     
+7. 运行镜像：
+     root@zongpeng-virtual-machine:/home/zongpeng# docker -p run 82:81 gohttpserver:v1
+     #此时可以在本地使用浏览器进行访问（本地搭建的虚拟机，IP段是192.168.159）：http://192.168.159.132:82//healthz
+
+二、将镜像推送至 docker 官方镜像仓库（推送至hub.docker.com），BTW，此时已经完成注册
+
+8. 登录docker：
+     root@zongpeng-virtual-machine:/home/zongpeng# docker login
+     Login with your Docker ID to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com to create one.
+     Username: zongpengdocker
+     Password:
+     WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+     Configure a credential helper to remove this warning. See
+     tps://docs.docker.com/engine/reference/commandline/login/#credentials-store
+     Login Succeeded
+
+9. 修改镜像名称（同一个镜像的不同名称），并推送到docker中：
+   
+     root@zongpeng-virtual-machine:/home/zongpeng# docker push page0102/zongpengdocker:v1
+     The push refers to repository [docker.io/page0102/zongpengdocker]
+     312be9596838: Pushed 
+     bfd7fd253ff9: Pushed 
+     6515074984c6: Pushed 
+     v1: digest: sha256:ca1b58bc15cb18592b924362ac71038a40f6f856bb56f120b0011a00ca588f88 size: 947
+     
+     ## 注意：push 后边的 page0102/zongpengdocker，一定要和Docker中的一样，否则会推送失败
+     ## 失败样例：
+     /**
+     root@zongpeng-virtual-machine:/home/zongpeng# docker push zongpengdocker/dockerstudy:v1 
+     The push refers to repository [docker.io/zongpengdocker/dockerstudy]
+     312be9596838: Preparing 
+     bfd7fd253ff9: Preparing 
+     6515074984c6: Preparing 
+     denied: requested access to the resource is denied
+     **/
+
+ 三、 通过 nsenter 进入容器查看 IP 配置
+ 
+ 10. 通过 nsenter 查看IP
+    root@zongpeng-virtual-machine:/home/dockerstudy/httpserver/go#  sudo nsenter -n -t 4544
+    root@zongpeng-virtual-machine:/home/dockerstudy/httpserver/go# ip a
+    1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    14: eth0@if15: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+
+    
